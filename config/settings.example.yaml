@@ -1,0 +1,13 @@
+dynalist:
+  api_key: "your_dynalist_api_key_here"
+  document_id: "your_dynalist_document_id_here"
+
+notion:
+  api_key: "your_notion_api_key_here"
+  database_id: "your_notion_database_id_here"
+
+logging:
+  log_file: "logs/sync.log"
+
+schedule:
+  time: "00:00"  # 매일 자정 실행

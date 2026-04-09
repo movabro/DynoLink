@@ -1,0 +1,20 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+
+# Notion/Dynalist sensitive configuration
+config/settings.yaml
+
+# Logs and runtime files
+logs/
+*.log
+
+# OS files
+.DS_Store
+.idea/
+.vscode/
