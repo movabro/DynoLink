@@ -3,30 +3,16 @@ import notion_client
 
 class NotionClient:
     def __init__(self, api_key, database_id):
-        print("NotionClient init start")
-        try:
-            self.client = notion_client.Client(auth=api_key)
-            print("Client created")
-        except Exception as e:
-            print(f"Error creating client: {e}")
-            raise
+        self.client = notion_client.Client(auth=api_key)
         self.api_key = api_key
         self.database_id = database_id
-        print("Loading database properties...")
-        try:
-            self.properties = self._load_database_properties()
-            print(f"Properties loaded: {len(self.properties)} properties")
-        except Exception as e:
-            print(f"Error loading properties: {e}")
-            raise
+        self.properties = self._load_database_properties()
         self.title_property_name = self._find_title_property()
-        print(f"Title property: {self.title_property_name}")
         self.date_property_name = self._find_property_name(['날짜', 'Date'])
         self.top_tag_property_name = self._find_property_name(['상위 태그', '상위태그', 'Top Tag'])
         self.sub_tags_property_name = self._find_property_name(['하위 태그', '하위태그', 'Sub Tags', '태그'])
         self.path_property_name = self._find_property_name(['계층 경로', '계층경로', 'Path'])
         self.memo_property_name = self._find_property_name(['메모', 'Memo'])
-        print("NotionClient init complete")
 
     def _load_database_properties(self):
         headers = {

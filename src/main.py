@@ -1,8 +1,9 @@
+import argparse
 import schedule
 import time
 import logging
 from dynalist_client import DynalistClient
-from notion_client import NotionClient
+from notion_api_client import NotionClient
 from transformer import Transformer
 import yaml
 
@@ -21,12 +22,14 @@ def sync_daily_notes():
         
         # 오늘의 기록 가져오기
         today_items, all_nodes = dynalist.get_today_items()
+        logging.info(f"Found {len(today_items)} today items")
         
         # Transformer 초기화
         transformer = Transformer()
         
         # Notion 데이터베이스 레코드로 변환
         notion_records = transformer.dynalist_to_notion_records(today_items, all_nodes)
+        logging.info(f"Transformed to {len(notion_records)} Notion records")
         
         # Notion 클라이언트 초기화
         notion = NotionClient(config['notion']['api_key'], config['notion']['database_id'])
@@ -39,11 +42,19 @@ def sync_daily_notes():
         logging.error(f"Error syncing daily notes: {str(e)}")
 
 if __name__ == "__main__":
-    # 스케줄 설정: 매일 자정 실행
-    schedule.every().day.at(config['schedule']['time']).do(sync_daily_notes)
-    
-    logging.info("Scheduler started. Waiting for midnight...")
-    
-    while True:
-        schedule.run_pending()
-        time.sleep(60)  # 1분마다 체크
+    parser = argparse.ArgumentParser(description='DynoLink daily sync runner')
+    parser.add_argument('--once', action='store_true', help='Run sync immediately once instead of waiting for scheduled time')
+    args = parser.parse_args()
+
+    if args.once:
+        logging.info("Running one-time sync...")
+        sync_daily_notes()
+    else:
+        # 스케줄 설정: 매일 자정 실행
+        schedule.every().day.at(config['schedule']['time']).do(sync_daily_notes)
+        
+        logging.info("Scheduler started. Waiting for midnight...")
+        
+        while True:
+            schedule.run_pending()
+            time.sleep(60)  # 1분마다 체크
