@@ -7,10 +7,7 @@ class DynalistClient:
         self.document_id = document_id
         self.base_url = "https://dynalist.io/api/v1"
     
-    def get_today_items(self):
-        # 오늘 날짜 계산
-        today = datetime.now().date()
-        
+    def get_items_by_date(self, target_date):
         headers = {
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json'
@@ -44,22 +41,22 @@ class DynalistClient:
                     continue  # skip this document
                 nodes = content.get('nodes', [])
                 all_nodes.extend(nodes)
-                # 오늘 생성된 항목 추출 (created 필터링)
-                today_items = self._filter_today_items(content, today)
-                items.extend(today_items)
+                # 지정된 날짜에 생성된 항목 추출 (created 필터링)
+                target_items = self._filter_items_by_date(content, target_date)
+                items.extend(target_items)
         
         return items, all_nodes
     
-    def _filter_today_items(self, content, today):
-        # Dynalist의 노드 구조에서 오늘 생성된 항목 필터링
+    def _filter_items_by_date(self, content, target_date):
+        # Dynalist의 노드 구조에서 지정된 날짜에 생성된 항목 필터링 (메모가 있는 항목만)
         nodes = content.get('nodes', [])
-        today_items = []
+        target_items = []
         for node in nodes:
             created_timestamp = node.get('created', 0) / 1000  # milliseconds to seconds
             created_time = datetime.fromtimestamp(created_timestamp).date()
-            if created_time == today:
-                today_items.append(node)
-        return today_items
+            if created_time == target_date and node.get('note'):  # 메모가 있는 경우만
+                target_items.append(node)
+        return target_items
 
 # 테스트 함수
 def test_dynalist_api():
