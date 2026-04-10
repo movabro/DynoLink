@@ -20,19 +20,19 @@ def sync_daily_notes():
         dynalist = DynalistClient(config['dynalist']['api_key'], config['dynalist']['document_id'])
         
         # 오늘의 기록 가져오기
-        today_items = dynalist.get_today_items()
+        today_items, all_nodes = dynalist.get_today_items()
         
         # Transformer 초기화
         transformer = Transformer()
         
-        # Notion 블록으로 변환
-        notion_blocks = transformer.dynalist_to_notion_blocks(today_items)
+        # Notion 데이터베이스 레코드로 변환
+        notion_records = transformer.dynalist_to_notion_records(today_items, all_nodes)
         
         # Notion 클라이언트 초기화
         notion = NotionClient(config['notion']['api_key'], config['notion']['database_id'])
         
-        # Notion에 추가
-        notion.add_blocks_to_page(notion_blocks)
+        # Notion에 데이터베이스 페이지로 추가
+        notion.add_pages_to_database(notion_records)
         
         logging.info("Daily notes synced successfully.")
     except Exception as e:

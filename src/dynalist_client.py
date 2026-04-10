@@ -29,6 +29,7 @@ class DynalistClient:
         
         # 특정 문서 또는 전체 처리
         items = []
+        all_nodes = []
         for doc in documents:
             if self.document_id and doc['id'] != self.document_id:
                 continue
@@ -41,11 +42,13 @@ class DynalistClient:
                 content = doc_response.json()
                 if content.get('_code') != 'Ok':
                     continue  # skip this document
+                nodes = content.get('nodes', [])
+                all_nodes.extend(nodes)
                 # 오늘 생성된 항목 추출 (created 필터링)
                 today_items = self._filter_today_items(content, today)
                 items.extend(today_items)
         
-        return items
+        return items, all_nodes
     
     def _filter_today_items(self, content, today):
         # Dynalist의 노드 구조에서 오늘 생성된 항목 필터링
