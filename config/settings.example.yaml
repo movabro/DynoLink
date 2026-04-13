@@ -1,10 +1,31 @@
 dynalist:
   api_key: "your_dynalist_api_key_here"
-  document_id: "your_dynalist_document_id_here"
+  # 단일 document_id (구형 호환성)
+  # document_id: "your_dynalist_document_id_here"
+  
+  # 다중 document_ids (새 방식)
+  document_ids:
+    - id: "your_main_document_id"
+      name: "메인 문서"
+      type: "tagged"  # tagged = 태그로 분류, concept = 모두 개념_단어_용어로
+    - id: "your_concept_document_id"
+      name: "개념 문서"
+      type: "concept"
 
 notion:
   api_key: "your_notion_api_key_here"
-  database_id: "your_notion_database_id_here"
+  databases:
+    - name: "개념_단어_용어"
+      purpose: "concept"
+      database_id: "your_concept_database_id_here"
+    - name: "업무관련"
+      purpose: "work"
+      database_id: "your_work_database_id_here"
+      tag_filter: "#업무관련"
+    - name: "개인용무"
+      purpose: "personal"
+      database_id: "your_personal_database_id_here"
+      tag_filter: "#개인용무"
 
 logging:
   log_file: "logs/sync.log"

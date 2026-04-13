@@ -9,10 +9,10 @@ class NotionClient:
         self.properties = self._load_database_properties()
         self.title_property_name = self._find_title_property()
         self.date_property_name = self._find_property_name(['날짜', 'Date'])
-        self.top_tag_property_name = self._find_property_name(['상위 태그', '상위태그', 'Top Tag'])
-        self.sub_tags_property_name = self._find_property_name(['하위 태그', '하위태그', 'Sub Tags', '태그'])
-        self.path_property_name = self._find_property_name(['계층 경로', '계층경로', 'Path'])
-        # 메모는 페이지 내용으로 저장하므로 속성 제거
+        # 3단계 계층 구조 필드
+        self.domain_property_name = self._find_property_name(['대분류', '영역', 'Domain'])
+        self.category_property_name = self._find_property_name(['중분류', '카테고리', 'Category'])
+        self.tags_property_name = self._find_property_name(['소분류', '태그', 'Tags'])
 
     def _load_database_properties(self):
         headers = {
@@ -41,6 +41,19 @@ class NotionClient:
     def _normalize_key(self, key):
         return ''.join(key.lower().split())
 
+    def _split_text_by_limit(self, text, limit=2000):
+        """텍스트를 지정된 길이로 분할 (Notion API 제한: 2000자)"""
+        if len(text) <= limit:
+            return [text]
+        
+        chunks = []
+        current_pos = 0
+        while current_pos < len(text):
+            chunk = text[current_pos:current_pos + limit]
+            chunks.append(chunk)
+            current_pos += limit
+        return chunks
+
     def add_pages_to_database(self, records):
         responses = []
         for record in records:
@@ -55,30 +68,36 @@ class NotionClient:
                     "date": {"start": record['date']}
                 }
 
-            if record.get('top_tag') and self.top_tag_property_name:
-                properties[self.top_tag_property_name] = {
-                    "select": {"name": record['top_tag']}
+            # 대분류 (Domain)
+            if record.get('domain') and self.domain_property_name:
+                properties[self.domain_property_name] = {
+                    "select": {"name": record['domain']}
                 }
 
-            if record.get('sub_tags') and self.sub_tags_property_name:
-                properties[self.sub_tags_property_name] = {
+            # 중분류 (Category)
+            if record.get('category') and self.category_property_name:
+                properties[self.category_property_name] = {
+                    "select": {"name": record['category']}
+                }
+
+            # 소분류+ (Tags - Multi-select)
+            if record.get('sub_tags') and self.tags_property_name:
+                properties[self.tags_property_name] = {
                     "multi_select": [{"name": tag} for tag in record['sub_tags']]
                 }
 
-            if record.get('hierarchy_path') and self.path_property_name:
-                properties[self.path_property_name] = {
-                    "rich_text": [{"type": "text", "text": {"content": record['hierarchy_path']}}]
-                }
-
-            # 메모는 페이지 내용으로 저장
+            # 메모는 페이지 내용으로 저장 (2000자 초과 시 자동으로 분할)
             children = []
             if record.get('memo'):
-                children.append({
-                    "type": "paragraph",
-                    "paragraph": {
-                        "rich_text": [{"type": "text", "text": {"content": record['memo']}}]
-                    }
-                })
+                memo_chunks = self._split_text_by_limit(record['memo'], limit=2000)
+                for i, chunk in enumerate(memo_chunks):
+                    prefix = f"[{i+1}/{len(memo_chunks)}] " if len(memo_chunks) > 1 else ""
+                    children.append({
+                        "type": "paragraph",
+                        "paragraph": {
+                            "rich_text": [{"type": "text", "text": {"content": prefix + chunk}}]
+                        }
+                    })
 
             response = self.client.pages.create(
                 parent={"database_id": self.database_id},
@@ -87,3 +106,59 @@ class NotionClient:
             )
             responses.append(response)
         return responses
+
+
+class NotionMultiClient:
+    """다중 Notion 데이터베이스를 관리하는 클라이언트 (db_purpose 기반)"""
+    
+    def __init__(self, api_key, databases_config):
+        """
+        api_key: Notion API 키
+        databases_config: 데이터베이스 설정 리스트
+            [
+                {
+                    "name": "개념_단어_용어", 
+                    "database_id": "...", 
+                    "purpose": "concept"
+                },
+                {
+                    "name": "업무관련", 
+                    "database_id": "...", 
+                    "purpose": "work",
+                    "tag_filter": "#업무관련"
+                },
+                ...
+            ]
+        """
+        self.api_key = api_key
+        self.databases_config = databases_config
+        self.clients = {}
+        self.purpose_to_db = {}
+        
+        # 각 데이터베이스에 대한 NotionClient 초기화
+        for db_config in databases_config:
+            purpose = db_config['purpose']
+            db_id = db_config['database_id']
+            self.clients[purpose] = NotionClient(api_key, db_id)
+            self.purpose_to_db[purpose] = db_config
+    
+    def add_pages_to_all_databases(self, records):
+        """모든 적절한 데이터베이스에 페이지 추가"""
+        results = {}
+        
+        for record in records:
+            purpose = record.get('db_purpose', 'concept')
+            
+            if purpose and purpose in self.clients:
+                if purpose not in results:
+                    results[purpose] = {'success': 0, 'failed': 0, 'records': []}
+                
+                try:
+                    response = self.clients[purpose].add_pages_to_database([record])
+                    results[purpose]['success'] += 1
+                    results[purpose]['records'].append(record['title'])
+                except Exception as e:
+                    results[purpose]['failed'] += 1
+                    print(f"Error adding record '{record['title']}' to {purpose}: {str(e)}")
+        
+        return results

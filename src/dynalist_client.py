@@ -2,12 +2,33 @@ import requests
 from datetime import datetime, timedelta
 
 class DynalistClient:
-    def __init__(self, api_key, document_id=None):
+    def __init__(self, api_key, document_ids=None):
+        """
+        api_key: Dynalist API key
+        document_ids: 문서 ID 배열 또는 단일 ID (구형 호환성)
+                     [{"id": "...", "name": "...", "type": "..."}, ...]
+        """
         self.api_key = api_key
-        self.document_id = document_id
+        self.document_ids = self._normalize_document_ids(document_ids)
         self.base_url = "https://dynalist.io/api/v1"
     
+    def _normalize_document_ids(self, document_ids):
+        """다양한 입력 형식을 표준화"""
+        if not document_ids:
+            return []
+        
+        # 문자열 단일 ID인 경우 (구형 호환성)
+        if isinstance(document_ids, str):
+            return [{"id": document_ids, "name": document_ids, "type": "tagged"}]
+        
+        # 이미 배열인 경우
+        if isinstance(document_ids, list):
+            return document_ids
+        
+        return []
+    
     def get_items_by_date(self, target_date):
+        """모든 document_id에서 지정된 날짜의 항목 가져오기, 각각의 타입 정보 함께 반환"""
         headers = {
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json'
@@ -23,12 +44,20 @@ class DynalistClient:
             raise Exception(f"API Error: {data.get('_code')} - {data.get('_msg')}")
         
         documents = data.get('files', [])
+        document_id_set = {doc_config['id'] for doc_config in self.document_ids}
         
-        # 특정 문서 또는 전체 처리
+        # 결과: (아이템 리스트, 모든 노드, 문서 타입 맵)
         items = []
         all_nodes = []
-        for doc in documents:
-            if self.document_id and doc['id'] != self.document_id:
+        doc_type_map = {}  # {node_id: doc_type}
+        
+        for doc_config in self.document_ids:
+            target_doc_id = doc_config['id']
+            doc_type = doc_config.get('type', 'tagged')
+            
+            # 해당 document 찾기
+            doc = next((d for d in documents if d['id'] == target_doc_id), None)
+            if not doc:
                 continue
             
             # 문서 내용 가져오기
@@ -38,23 +67,31 @@ class DynalistClient:
             if doc_response.status_code == 200:
                 content = doc_response.json()
                 if content.get('_code') != 'Ok':
-                    continue  # skip this document
+                    continue
+                
                 nodes = content.get('nodes', [])
                 all_nodes.extend(nodes)
-                # 지정된 날짜에 생성된 항목 추출 (created 필터링)
+                
+                # 지정된 날짜에 생성된 항목 추출
                 target_items = self._filter_items_by_date(content, target_date)
+                
+                # 각 항목에 문서 타입 정보 추가
+                for item in target_items:
+                    item['_doc_type'] = doc_type
+                    doc_type_map[item['id']] = doc_type
+                
                 items.extend(target_items)
         
-        return items, all_nodes
+        return items, all_nodes, doc_type_map
     
     def _filter_items_by_date(self, content, target_date):
-        # Dynalist의 노드 구조에서 지정된 날짜에 생성된 항목 필터링 (메모가 있는 항목만)
+        """지정된 날짜에 생성된 항목 필터링 (메모가 있는 항목만)"""
         nodes = content.get('nodes', [])
         target_items = []
         for node in nodes:
-            created_timestamp = node.get('created', 0) / 1000  # milliseconds to seconds
+            created_timestamp = node.get('created', 0) / 1000
             created_time = datetime.fromtimestamp(created_timestamp).date()
-            if created_time == target_date and node.get('note'):  # 메모가 있는 경우만
+            if created_time == target_date and node.get('note'):
                 target_items.append(node)
         return target_items
 
@@ -64,25 +101,19 @@ def test_dynalist_api():
     with open('config/settings.yaml', 'r') as f:
         config = yaml.safe_load(f)
     
-    client = DynalistClient(config['dynalist']['api_key'], config['dynalist']['document_id'])
+    document_ids = config['dynalist'].get('document_ids') or [config['dynalist']['document_id']]
+    client = DynalistClient(config['dynalist']['api_key'], document_ids)
     try:
-        items = client.get_today_items()
+        from datetime import datetime
+        items, all_nodes, doc_type_map = client.get_items_by_date(datetime.now().date())
         print("Today's items:")
         for item in items:
-            print(f"- {item.get('content', '')}")
+            doc_type = doc_type_map.get(item['id'], 'unknown')
+            print(f"- {item.get('content', '')} (type: {doc_type})")
         if not items:
             print("(오늘 생성된 항목이 없습니다.)")
     except Exception as e:
         print(f"Error: {e}")
-        # 추가 디버깅: API 응답 전체 출력 시도
-        try:
-            # 간단히 재호출해서 응답 확인 (실제로는 로깅으로 대체)
-            headers = {'Authorization': f'Bearer {config["dynalist"]["api_key"]}', 'Content-Type': 'application/json'}
-            response = requests.post("https://dynalist.io/api/v1/file/list", headers=headers, json={'token': config['dynalist']['api_key']})
-            print(f"Debug - Status Code: {response.status_code}")
-            print(f"Debug - Response: {response.text}")
-        except Exception as debug_e:
-            print(f"Debug failed: {debug_e}")
 
 if __name__ == "__main__":
     test_dynalist_api()
