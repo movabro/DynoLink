@@ -89,7 +89,7 @@ class NotionClient:
             # 메모는 페이지 내용으로 저장 (2000자 초과 시 자동으로 분할)
             children = []
             if record.get('memo'):
-                memo_chunks = self._split_text_by_limit(record['memo'], limit=2000)
+                memo_chunks = self._split_text_by_limit(record['memo'], limit=1990)
                 for i, chunk in enumerate(memo_chunks):
                     prefix = f"[{i+1}/{len(memo_chunks)}] " if len(memo_chunks) > 1 else ""
                     children.append({

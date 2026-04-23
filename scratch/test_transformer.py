@@ -10,7 +10,7 @@ with open('config/settings.yaml', 'r') as f:
 document_ids = config['dynalist']['document_ids']
 dynalist = DynalistClient(config['dynalist']['api_key'], document_ids)
 
-target_date = datetime.strptime("2026-02-10", '%Y-%m-%d').date()
+target_date = datetime.strptime("2026-04-22", '%Y-%m-%d').date()
 today_items, all_nodes, doc_type_map = dynalist.get_items_by_date(target_date)
 
 print(f"Found {len(today_items)} items for {target_date}")
@@ -27,7 +27,7 @@ for r in records:
     print(f"Title: {r['title']}")
     print(f"DB Purpose: {r['db_purpose']}")
     print(f"Date: {r['date']}")
-    print(f"Domain: {r['domain']}")
-    print(f"Category: {r['category']}")
+    print(f"Format: [{r['domain']}] > [{r['category']}] > {r.get('sub_tags', [])}")
     print(f"Memo length: {len(r['memo'])}")
     print("---")
+

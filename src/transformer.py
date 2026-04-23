@@ -116,24 +116,23 @@ class Transformer:
             sub_tags = []
             db_purpose = "concept"
             
-            # 태그 분배
+            # 1. 태그 분배 (분류 태그 감지 및 스트리핑)
             for t in tags_for_children:
                 if t in db_classification_tags:
+                    # DB 분류 규칙 적용
                     if t == "#업무관련":
                         db_purpose = "work"
                     elif t == "#개인용무":
                         db_purpose = "personal"
-                        
-                    if not domain_tag:
-                        domain_tag = t
+                    # 분류 태그는 속성에 포함하지 않기 위해 pure_tags에 넣지 않음 (스트리핑 처리)
                 else:
                     pure_tags.append(t)
             
             if doc_type == "concept":
                 db_purpose = "concept"
                 
-            # 만약 DB 분류 태그가 영역을 지정하지 못했다면 pure_tags에서 가져옴
-            if not domain_tag and pure_tags:
+            # 2. 동적 속성 할당 (Dynamic Property Assignment)
+            if pure_tags:
                 domain_tag = pure_tags.pop(0)
             
             if pure_tags:
