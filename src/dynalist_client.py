@@ -1,4 +1,5 @@
 import requests
+import re
 from datetime import datetime, timedelta
 
 class DynalistClient:
@@ -85,14 +86,45 @@ class DynalistClient:
         return items, all_nodes, doc_type_map
     
     def _filter_items_by_date(self, content, target_date):
-        """지정된 날짜에 생성된 항목 필터링 (메모가 있는 항목만)"""
+        """텍스트 기반 날짜 탐색: 'YYMMDD요일' 패턴 매칭
+        
+        구조:
+        - 월 (수준 1)
+          - *월 *일 *요일 (수준 2)
+            - 260102금 - #업무관련 (수준 3) ← 여기서 추출
+            - 260102금 - #개인용무 / #유니콘 (수준 3)
+        """
         nodes = content.get('nodes', [])
         target_items = []
+        
+        # target_date를 YYMMDD 문자열로 변환
+        target_date_str = target_date.strftime('%y%m%d')
+        
+        # 한글 요일 목록
+        weekday_kr = ['월', '화', '수', '목', '금', '토', '일']
+        
         for node in nodes:
-            created_timestamp = node.get('created', 0) / 1000
-            created_time = datetime.fromtimestamp(created_timestamp).date()
-            if created_time == target_date and node.get('note'):
-                target_items.append(node)
+            if not node.get('content'):
+                continue
+            
+            content_text = node.get('content', '').strip()
+            
+            # "YYMMDDday" 패턴 찾기 (예: 260102금, 260105월)
+            # 정규식: 6자리 숫자 + 한글 요일
+            pattern = r'(\d{6})([' + ''.join(weekday_kr) + r'])'
+            match = re.search(pattern, content_text)
+            
+            if match:
+                extracted_date = match.group(1)
+                extracted_day = match.group(2)
+                
+                # 추출한 날짜와 target_date가 일치하는지 확인
+                if extracted_date == target_date_str:
+                    # 요일도 검증 (선택사항이지만 정확성을 위해)
+                    expected_day_index = target_date.weekday()  # 0=월, 6=일
+                    if weekday_kr[expected_day_index] == extracted_day:
+                        target_items.append(node)
+        
         return target_items
 
 # 테스트 함수

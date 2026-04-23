@@ -99,11 +99,14 @@ class NotionClient:
                         }
                     })
 
-            response = self.client.pages.create(
-                parent={"database_id": self.database_id},
-                properties=properties,
-                children=children if children else None
-            )
+            kwargs = {
+                "parent": {"database_id": self.database_id},
+                "properties": properties
+            }
+            if children:
+                kwargs["children"] = children
+            
+            response = self.client.pages.create(**kwargs)
             responses.append(response)
         return responses
 
