@@ -1,4 +1,5 @@
 import requests
+import time
 from notion_client import Client as NotionClientAPI
 
 class NotionClient:
@@ -106,6 +107,8 @@ class NotionClient:
             if children:
                 kwargs["children"] = children
             
+            # API 호출 속도 제한(Rate Limit) 방지를 위한 대기
+            time.sleep(0.5)
             response = self.client.pages.create(**kwargs)
             responses.append(response)
         return responses
